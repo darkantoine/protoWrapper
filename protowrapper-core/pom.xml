@@ -1,0 +1,67 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>io.github.darkantoine</groupId>
+    <artifactId>protowrapper</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+  </parent>
+  <artifactId>protowrapper-core</artifactId>
+  <name>protowrapper-core</name>
+  
+	<dependencies>
+	  	<!-- https://mvnrepository.com/artifact/com.google.protobuf/protobuf-java -->
+		<dependency>
+	    	<groupId>com.google.protobuf</groupId>
+	    	<artifactId>protobuf-java</artifactId>
+	    	<version>3.6.1</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/com.squareup/javapoet -->
+		<dependency>
+		    <groupId>com.squareup</groupId>
+		    <artifactId>javapoet</artifactId>
+		    <version>1.11.1</version>
+		</dependency>		
+	</dependencies>
+	
+	<build>
+	<plugins>
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>generate-protobuf-test</id>
+            <phase>process-test-sources</phase>
+            <goals>
+              <goal>test-compile</goal>
+            </goals>
+            <configuration>
+             <protocExecutable>c:/protoc/bin/protoc.exe</protocExecutable>
+              <clearOutputDirectory>false</clearOutputDirectory>
+              <outputDirectory>${project.build.directory}/generated-test-sources/java</outputDirectory>
+              <protoTestSourceRoot>${project.basedir}/src/test/resources/protobuf</protoTestSourceRoot>
+              <writeDescriptorSet>true</writeDescriptorSet>
+              <descriptorSetOutputDirectory>${project.build.directory}/test-classes/META-INF/proto</descriptorSetOutputDirectory>
+              <descriptorSetFileName>proto.desc</descriptorSetFileName>
+              <includeDependenciesInDescriptorSet>true</includeDependenciesInDescriptorSet>
+            </configuration>
+          </execution>
+          <execution>
+            <id>generate-protobuf-test-target</id>
+            <phase>process-test-sources</phase>
+            <goals>
+              <goal>test-compile</goal>
+            </goals>
+            <configuration>
+              <clearOutputDirectory>false</clearOutputDirectory>
+              <outputDirectory>${project.build.directory}/generated-test-sources/java</outputDirectory>
+              <protoTestSourceRoot>${project.build.directory}/generated-test-sources</protoTestSourceRoot>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+	
+
+</project>

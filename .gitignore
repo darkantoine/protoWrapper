@@ -1,0 +1,5 @@
+protowrapper-core/target/
+protowrapper-maven-plugin/target/
+src/it/simple-it/verify.groovy
+src/it/simple-it/pom.xml
+src/it/settings.xml
