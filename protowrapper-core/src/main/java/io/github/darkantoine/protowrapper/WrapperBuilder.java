@@ -61,15 +61,17 @@ public class WrapperBuilder {
 
     String protoFieldName = lowerCamel(className)+"PB";
     wrapperClassBuilder.addField(protoClass, protoFieldName, Modifier.PRIVATE);
-    
+
     addConstructor(wrapperClassBuilder,protoClass,protoLoader, protoFieldName);
     
     addMethods(wrapperClassBuilder,protoClass,protoLoader, protoFieldName);
         units.put(protoClass, JavaFile.builder(packageName,wrapperClassBuilder.build()));
+
     
     todo.remove(protoClass);
   }
   
+
   private void addConstructor(Builder wrapperClassBuilder, Class<?> protoClass, ProtoLoader protoLoader,
       String protoFieldName) {
     MethodSpec.Builder mb;
@@ -82,6 +84,7 @@ public class WrapperBuilder {
     wrapperClassBuilder.addMethod(mb.build());
     
   }
+
 
   private String nameForWrappedClass(Class<?> protoClass) {
     return PREFIX+protoClass.getSimpleName();
