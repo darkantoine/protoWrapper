@@ -73,10 +73,10 @@ public class ProtoLoader {
       isMapField = fD.isMapField();
       javaType = fD.getJavaType();
       
-      computeJavaClass(fD, parentClass);
+      computeJavaClass(parentClass);
     }
 
-    private void computeJavaClass(FieldDescriptor fD, Class<?> parentClass) {
+    private void computeJavaClass(Class<?> parentClass) {
       
       if(JavaType.BOOLEAN.equals(javaType)) {
         javaClass = Boolean.class;
@@ -112,10 +112,23 @@ public class ProtoLoader {
         javaClass = ByteString.class;
         return;
       }
+      
+      if (JavaType.ENUM.equals(javaType)) {
+        try {
+          Method method = parentClass.getMethod("get" + name.substring(0, 1).toUpperCase() + name.substring(1));
+          javaClass = method.getReturnType();
+        } catch (NoSuchMethodException | SecurityException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        }
+        
+        return;
+      }
+      
 
       if (javaType == JavaType.MESSAGE) {
         try {
-          messageName = fD.getMessageType().getFullName();
+          messageName = fieldDescriptor.getMessageType().getFullName();
           if (!isMapField) {
 
             if (!isRepeated) {

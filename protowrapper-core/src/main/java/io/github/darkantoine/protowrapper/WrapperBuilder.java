@@ -26,6 +26,7 @@ public class WrapperBuilder {
   private static final String PREFIX = "Wrapped";
   private Map<Class<?>,JavaFile.Builder> units = new HashMap<Class<?>,JavaFile.Builder>();
   private Map<Class<?>,ProtoLoader> protoLoaders = new HashMap<Class<?>,ProtoLoader>();
+  private Map<Class<?>, String> classNameMap =  new HashMap<Class<?>,String>();
   private Set<Class<?>> todo = new HashSet<Class<?>>();
   private Class<?> currentlyProcessing = null;
   private String packageName = "com.example";
@@ -56,6 +57,7 @@ public class WrapperBuilder {
     currentlyProcessing = protoClass;
     
     String className = nameForWrappedClass(protoClass);
+    classNameMap.put(currentlyProcessing, className);
      TypeSpec.Builder wrapperClassBuilder = TypeSpec.classBuilder(className)
             .addModifiers(javax.lang.model.element.Modifier.PUBLIC);
 
@@ -68,7 +70,7 @@ public class WrapperBuilder {
         units.put(protoClass, JavaFile.builder(packageName,wrapperClassBuilder.build()));
 
     
-    todo.remove(protoClass);
+    todo.remove(currentlyProcessing);
   }
   
 
@@ -190,8 +192,8 @@ public class WrapperBuilder {
   private TypeName wrapped(Class<?> javaClass) {
     System.out.println(javaClass.toString() + " vs " + currentlyProcessing.toString());
     if (com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(javaClass)) {
-      if (!currentlyProcessing.equals(javaClass)) {
-        // TODO
+      if (!currentlyProcessing.equals(javaClass) && !todo.contains(javaClass) && !units.containsKey(javaClass)) {
+        this.addClass(javaClass);
       }
       return ClassName.get(packageName, nameForWrappedClass(javaClass));
     }
@@ -200,6 +202,14 @@ public class WrapperBuilder {
 
   public String getJavaFileForClass(Class<?> clazz) {
     return units.get(clazz).build().toString();
+  }
+  
+  public String getWrappedClassName(Class<?> clazz) {
+    return this.classNameMap.get(clazz);
+  }
+  
+  public Set<Class<?>> getGeneratedClasses(){
+    return units.keySet();
   }
 
 }

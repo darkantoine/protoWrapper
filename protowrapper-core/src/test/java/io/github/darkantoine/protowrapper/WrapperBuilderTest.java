@@ -24,12 +24,15 @@ public class WrapperBuilderTest {
 
   @Test
   public void test() throws IOException {
-    System.out.println(wb.getJavaFileForClass(Person.class));
     Path path = Paths.get("target/generated-test-sources/java/com/example");
     if (!Files.exists(path)) {
       Files.createDirectories(path);
     }
-    bufferedWritter("target/generated-test-sources/java/com/example/WrappedPerson.java",wb.getJavaFileForClass(Person.class));
+    for(Class<?> generatedClass: wb.getGeneratedClasses()) {
+    System.out.println("generatedClass: "+generatedClass.getName());
+      System.out.println(wb.getJavaFileForClass(generatedClass)); 
+    bufferedWritter("target/generated-test-sources/java/com/example/"+wb.getWrappedClassName(generatedClass)+".java",wb.getJavaFileForClass(generatedClass));
+    }
     assert(true);
   }
   
