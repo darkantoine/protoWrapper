@@ -68,11 +68,11 @@ public class ProtoLoader {
 
     public FieldDetails(FieldDescriptor fD, Class<?> parentClass) {
       fieldDescriptor = fD;
-      name = fD.getName();
+      name = fD.getJsonName();
       isRepeated = fD.isRepeated();
       isMapField = fD.isMapField();
       javaType = fD.getJavaType();
-      
+      //System.out.println("processing field: "+fD.getJsonName());
       computeJavaClass(parentClass);
     }
 
@@ -132,12 +132,12 @@ public class ProtoLoader {
           if (!isMapField) {
 
             if (!isRepeated) {
-              javaClass = parentClass.getMethod("get" + name.substring(0, 1).toUpperCase() + name.substring(1))
+              javaClass = parentClass.getMethod(getMethodName(name,isMapField,isRepeated))
                   .getReturnType();
             } else {
 
               Method method = parentClass
-                  .getMethod("get" + name.substring(0, 1).toUpperCase() + name.substring(1) + "List");
+                  .getMethod(getMethodName(name,isMapField,isRepeated));
               java.lang.reflect.Type type = method.getGenericReturnType();
               if (type instanceof ParameterizedType) {
                 ParameterizedType pt = (ParameterizedType)type;
@@ -148,7 +148,7 @@ public class ProtoLoader {
             }
           } else {
 
-            Method method = parentClass.getMethod("get" + name.substring(0, 1).toUpperCase() + name.substring(1));
+            Method method = parentClass.getMethod(getMethodName(name,isMapField,isRepeated));
             java.lang.reflect.Type type = method.getGenericReturnType();
             if (type instanceof ParameterizedType) {
               ParameterizedType pt = (ParameterizedType)type;
@@ -159,6 +159,19 @@ public class ProtoLoader {
         } catch (NoSuchMethodException | SecurityException e) {
           // TODO Auto-generated catch block
           e.printStackTrace();
+        }
+      }
+    }
+
+    private static String getMethodName(String name, boolean isMapField, boolean isRepeated) {
+      if(!isRepeated) {
+         return "get" + name.substring(0, 1).toUpperCase() + name.substring(1);
+      }
+      else {
+        if(isMapField) {
+          return "get" + name.substring(0, 1).toUpperCase() + name.substring(1);
+        } else {
+          return "get" + name.substring(0, 1).toUpperCase() + name.substring(1) + "List";
         }
       }
     }

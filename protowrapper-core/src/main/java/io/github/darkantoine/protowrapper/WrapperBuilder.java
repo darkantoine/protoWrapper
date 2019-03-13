@@ -6,6 +6,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.Modifier;
 
@@ -36,6 +39,7 @@ public class WrapperBuilder {
   
   public void addClass(Class<?> protoClass) {
     protoLoaders.put(protoClass, new ProtoLoader(protoClass));
+    classNameMap.put(protoClass, getWrappedClassName(protoClass));
     todo.add(protoClass);
   }
   
@@ -55,9 +59,10 @@ public class WrapperBuilder {
   private void process(Class<?> protoClass, ProtoLoader protoLoader) {
     
     currentlyProcessing = protoClass;
+    System.out.println("processing: "+protoClass.getCanonicalName());
     
-    String className = nameForWrappedClass(protoClass);
-    classNameMap.put(currentlyProcessing, className);
+    String className = classNameMap.get(protoClass);
+    
      TypeSpec.Builder wrapperClassBuilder = TypeSpec.classBuilder(className)
             .addModifiers(javax.lang.model.element.Modifier.PUBLIC);
 
@@ -87,10 +92,23 @@ public class WrapperBuilder {
     
   }
 
+  private static String classNameToCamelCase(Class<?> inputClass) {
+    
+    String className = inputClass.getCanonicalName();
+    String pattern = "([a-zA-Z])([a-zA-Z0-9]+)(\\.)";
+    Matcher m = Pattern.compile(pattern).matcher(className);
 
-  private String nameForWrappedClass(Class<?> protoClass) {
-    return PREFIX+protoClass.getSimpleName();
+    StringBuilder sb = new StringBuilder();
+    int last = 0;
+    while (m.find()) {
+      sb.append(m.group(1).toUpperCase());
+      sb.append(m.group(2));
+      last = m.end();
+    }
+    sb.append(className.substring(last));
+    return sb.toString();
   }
+
 
   private void addMethods(Builder wrapperClassBuilder, Class<?> protoClass, ProtoLoader protoLoader, String protoFieldName) {
     protoLoader.getMethodsMap().values().stream().forEach(x -> this.addMethod(x, wrapperClassBuilder, protoFieldName));    
@@ -190,12 +208,12 @@ public class WrapperBuilder {
   }
 
   private TypeName wrapped(Class<?> javaClass) {
-    System.out.println(javaClass.toString() + " vs " + currentlyProcessing.toString());
+    //System.out.println(javaClass.toString() + " vs " + currentlyProcessing.toString());
     if (com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(javaClass)) {
       if (!currentlyProcessing.equals(javaClass) && !todo.contains(javaClass) && !units.containsKey(javaClass)) {
         this.addClass(javaClass);
       }
-      return ClassName.get(packageName, nameForWrappedClass(javaClass));
+      return ClassName.get(packageName, classNameMap.get(javaClass));
     }
     return ClassName.get(javaClass);
   }
@@ -205,7 +223,26 @@ public class WrapperBuilder {
   }
   
   public String getWrappedClassName(Class<?> clazz) {
-    return this.classNameMap.get(clazz);
+    if (!com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(clazz)) {
+      return clazz.getCanonicalName();
+    }
+    
+    if(!classNameMap.containsKey(clazz)) {
+      
+      System.out.println("new class: "+clazz.getCanonicalName());      
+      List<Class<?>> collisions = classNameMap.keySet().stream().filter(x -> x.getSimpleName().equals(clazz.getSimpleName()))
+          .collect(Collectors.toList());
+      collisions.stream().forEach(x -> System.out.println("EXISTING: "+x.getCanonicalName()));
+
+      if (collisions.size() > 0) {
+        System.out.println("long name: "+PREFIX+classNameToCamelCase(clazz));
+        classNameMap.put(clazz, PREFIX+classNameToCamelCase(clazz));
+      } else {
+        classNameMap.put(clazz, PREFIX+clazz.getSimpleName());
+      }
+      System.out.println("with name: "+classNameMap.get(clazz));
+    }
+    return classNameMap.get(clazz);   
   }
   
   public Set<Class<?>> getGeneratedClasses(){
