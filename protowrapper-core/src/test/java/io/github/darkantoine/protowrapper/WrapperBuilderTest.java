@@ -1,7 +1,5 @@
 package io.github.darkantoine.protowrapper;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -11,26 +9,29 @@ import java.nio.file.Paths;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.amadeus.pulse.message.PassengerNameRecordMessage.PassengerNameRecord;
+import com.example.test.PersonMessage.Person;
 
-import test.example.PulseFacade;
+
 
 public class WrapperBuilderTest {
 
   private WrapperBuilder wb;
+
   @Before
   public void setUp() throws Exception {
     wb = new WrapperBuilder();
-    wb.addClass(PassengerNameRecord.class);
-    System.out.println(wb.addPackagePattern("com\\.amadeus\\.pulse\\.message\\.PassengerNameRecordMessage\\..*", ".pnr"));
-    System.out.println(wb.addPackagePattern("com\\.amadeus\\.pulse\\.message\\.pnr\\..*", ".pnr"));
-    System.out.println(wb.addPackagePattern("com\\.amadeus\\.pulse\\.message\\.common\\..*", ".common"));
+
+    wb.addClass(Person.class);
     
-    wb.build();    
+    wb.build();   
   }
 
   @Test
   public void test() throws IOException {
+    
+    System.out.println(wb.getJavaFileForClass(Person.class));
+    
+    
     Path path = Paths.get("target/generated-test-sources/java/com/example");
     if (!Files.exists(path)) {
       Files.createDirectories(path);
@@ -42,7 +43,7 @@ public class WrapperBuilderTest {
      if (!Files.exists(path)) {
        Files.createDirectories(path);
      }
-    bufferedWritter("target/generated-test-sources/java/"+packageToFolderPath(wb.getPackageForClass(generatedClass))+"/"+wb.getWrappedClassName(generatedClass)+".java",wb.getJavaFileForClass(generatedClass));
+    Files.write(Paths.get("target/generated-test-sources/java/"+packageToFolderPath(wb.getPackageForClass(generatedClass))+"/"+wb.getWrappedClassName(generatedClass)+".java"),wb.getJavaFileForClass(generatedClass).getBytes());
     }
     assert(true);
   }
@@ -64,12 +65,6 @@ public class WrapperBuilderTest {
     }
   }
   
-  private void bufferedWritter(String fileName, String str) 
-      throws IOException {    
-        BufferedWriter writer = new BufferedWriter(new FileWriter(fileName));
-        writer.write(str);         
-        writer.close();
-    }
 
 
 }

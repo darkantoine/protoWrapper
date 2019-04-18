@@ -1,5 +1,7 @@
 package io.github.darkantoine.protowrapper;
 
+import static io.github.darkantoine.protowrapper.StringUtils.EMPTY_STRING;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -14,12 +16,13 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+
 import io.github.darkantoine.protowrapper.ProtoLoader.FieldDetails;
 
 public class WrapperBuilder {
 
-  private final String PREFIX = "";
-  private final String SUFFIX = "Facade";
+  private String PREFIX = EMPTY_STRING;
+  private String SUFFIX = EMPTY_STRING;
   private final Class<?> listClass = LinkedList.class;
   private final Class<?> mapClass = HashMap.class;
   private Map<Class<?>, JavaFile.Builder> units = new HashMap<Class<?>, JavaFile.Builder>();
@@ -50,12 +53,18 @@ public class WrapperBuilder {
   public WrapperBuilder() {
   }
 
-  public WrapperBuilder(Class<?> abstractClass) {
+  public WrapperBuilder(Class<?> abstractClass, String prefix, String suffix) {
     if (ClassUtils.isAbstract(abstractClass)) {
       this.abstractClass = abstractClass;
     } else {
       throw new IllegalArgumentException(abstractClass.getCanonicalName() + " is not an abstractClass");
     }
+    PREFIX= prefix;
+    SUFFIX= suffix;    
+  }
+  
+  public WrapperBuilder(Class<?> abstractClass) {
+    this(abstractClass, EMPTY_STRING,EMPTY_STRING);    
   }
 
   public void addClass(Class<?> protoClass) {
@@ -78,10 +87,7 @@ public class WrapperBuilder {
   }
 
   private void build(Class<?> protoClass) {
-
-    // System.out.println("processing: "+protoClass.getCanonicalName());
     ClassBuilder classBuilder = new ClassBuilder (protoClass, this);
-
     units.put(protoClass, JavaFile.builder(getPackageName(protoClass), classBuilder.build()));
   }
 
@@ -127,7 +133,6 @@ public class WrapperBuilder {
   }
 
   TypeName getWrappedTypeName(Class<?> javaClass) {
-    // System.out.println(javaClass.toString() + " vs " + currentlyProcessing.toString());
     if (com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(javaClass) && !javaClass.getCanonicalName().startsWith("com.google.protobuf")) {
       if (!currentlyProcessing.equals(javaClass) && !todo.contains(javaClass) && !units.containsKey(javaClass)) {
         this.addClass(javaClass);

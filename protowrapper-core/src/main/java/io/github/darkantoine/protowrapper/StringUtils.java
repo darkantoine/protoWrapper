@@ -13,5 +13,7 @@ public class StringUtils {
   public static String lowerCamel(String name) {
     return name.substring(0, 1).toLowerCase() + name.substring(1);
   }
+  
+  public static String EMPTY_STRING = "";
 
 }

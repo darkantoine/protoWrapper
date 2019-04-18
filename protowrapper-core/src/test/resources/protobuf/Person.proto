@@ -5,6 +5,8 @@ package tutorial;
 option java_package = "com.example.test";
 option java_outer_classname = "PersonMessage";
 
+import "google/protobuf/wrappers.proto";
+
 message Person {
   string name = 1;
   int32 id = 2;
@@ -27,8 +29,19 @@ message Person {
   map<string,Person> family = 6;
   
   map<string, int32> counts = 7;
+  
+  Value value = 8;
+  
+  google.protobuf.BoolValue isWorking = 9;
 }
 
 message AddressBook {
   repeated Person people = 1;
+}
+
+message Value {
+	oneof type {
+		string value = 1;
+		string values = 2;
+	}
 }
