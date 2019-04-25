@@ -12,6 +12,12 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.FloatValue;
+import com.google.protobuf.Int32Value;
+import com.google.protobuf.Int64Value;
+import com.google.protobuf.StringValue;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -25,7 +31,18 @@ public class WrapperBuilder {
   private String SUFFIX = EMPTY_STRING;
   private final Class<?> listClass = LinkedList.class;
   private final Class<?> mapClass = HashMap.class;
-  private Map<Class<?>, JavaFile.Builder> units = new HashMap<Class<?>, JavaFile.Builder>();
+  
+  static Map<Class<?>, Class<?>> WKTMap = new HashMap<Class<?>,Class<?>>();
+  static {
+    WKTMap.put(StringValue.class, String.class);
+    WKTMap.put(Int32Value.class, Integer.class);
+    WKTMap.put(Int64Value.class, Long.class);
+    WKTMap.put(FloatValue.class, Float.class);
+    WKTMap.put(DoubleValue.class, Double.class);
+    WKTMap.put(BoolValue.class, Boolean.class);
+  }
+  
+  protected Map<Class<?>, JavaFile.Builder> wrappedJavaFilesMap = new HashMap<Class<?>, JavaFile.Builder>();
   private Map<Class<?>, ProtoLoader> protoLoaders = new HashMap<Class<?>, ProtoLoader>();
   private Map<Class<?>, String> classNameMap = new HashMap<Class<?>, String>();
   public Map<Class<?>, ProtoLoader> getProtoLoaders() {
@@ -46,6 +63,9 @@ public class WrapperBuilder {
   }
 
   private Set<Class<?>> todo = new HashSet<Class<?>>();
+  private Map<Class<?>, ClassParameters> classesParameters = new HashMap<Class<?>, ClassParameters>();
+  private ClassParameters defaultParameters = new ClassParameters(null, new LinkedList<ClassVariable>(), true, false);
+  
   private Class<?> currentlyProcessing = null;
   private String rootPackageName = "com.example";
   private Map<String, String> packagePatterns = new HashMap<String,String>();
@@ -66,10 +86,17 @@ public class WrapperBuilder {
   public WrapperBuilder(Class<?> abstractClass) {
     this(abstractClass, EMPTY_STRING,EMPTY_STRING);    
   }
-
+  
   public void addClass(Class<?> protoClass) {
+    addClass(protoClass,null);
+  }
+
+  public void addClass(Class<?> protoClass, ClassParameters classParameters) {
     protoLoaders.put(protoClass, new ProtoLoader(protoClass));
     classNameMap.put(protoClass, computeWrappedClassName(protoClass));
+    if(classParameters !=null) {
+      classesParameters.put(protoClass, classParameters);
+    }
     todo.add(protoClass);
   }
 
@@ -86,36 +113,20 @@ public class WrapperBuilder {
     todo.remove(currentlyProcessing);
   }
 
-  private void build(Class<?> protoClass) {
+  protected void build(Class<?> protoClass) {
     ClassBuilder classBuilder = new ClassBuilder (protoClass, this);
-    units.put(protoClass, JavaFile.builder(getPackageName(protoClass), classBuilder.build()));
+    wrappedJavaFilesMap.put(protoClass, JavaFile.builder(getPackageName(protoClass), classBuilder.build()));
   }
 
   private static String computeUniqueClassName(Class<?> inputClass, List<Class<?>> collisions) {
 
     String className = inputClass.getCanonicalName();
     String[] classNameparts = className.split("\\.");
-    
-    //List<String[]> collisionSplits = collisions.stream().map(Class<?>::getCanonicalName).map( x -> x.split("\\."))
-        
+     
     StringBuilder sb = new StringBuilder();
     for(String s: classNameparts) {
       sb.append(StringUtils.capitalize(s));
     }
-    
-    /*
-    String pattern = "([a-zA-Z])([a-zA-Z0-9]+)(\\.)";
-    Matcher m = Pattern.compile(pattern).matcher(className);
-
-    StringBuilder sb = new StringBuilder();
-    int last = 0;
-    while (m.find()) {
-      sb.append(m.group(1).toUpperCase());
-      sb.append(m.group(2));
-      last = m.end();
-    }
-    sb.append(className.substring(last));
-    */
     return sb.toString();
   }
 
@@ -134,15 +145,18 @@ public class WrapperBuilder {
 
   TypeName getWrappedTypeName(Class<?> javaClass) {
     if (com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(javaClass) && !javaClass.getCanonicalName().startsWith("com.google.protobuf")) {
-      if (!currentlyProcessing.equals(javaClass) && !todo.contains(javaClass) && !units.containsKey(javaClass)) {
+      if (!currentlyProcessing.equals(javaClass) && !todo.contains(javaClass) && !wrappedJavaFilesMap.containsKey(javaClass)) {
         this.addClass(javaClass);
       }
       return ClassName.get(getPackageName(javaClass), classNameMap.get(javaClass));
     }
+    if(WKTMap.containsKey(javaClass)) {
+      return ClassName.get(WKTMap.get(javaClass));
+    }
     return ClassName.get(javaClass);
   }
 
-  private String getPackageName(Class<?> javaClass) {
+  protected String getPackageName(Class<?> javaClass) {
     String fullClassName = javaClass.getCanonicalName();
     for(String pattern: packagePatterns.keySet()) {
       if(fullClassName.matches(pattern)){
@@ -168,7 +182,7 @@ public class WrapperBuilder {
   }
 
   public String getJavaFileForClass(Class<?> clazz) {
-    return units.get(clazz).build().toString();
+    return wrappedJavaFilesMap.get(clazz).build().toString();
   }
 
   private String computeWrappedClassName(Class<?> clazz) {
@@ -205,7 +219,7 @@ public class WrapperBuilder {
     return getPackageName(clazz);
   }
   public Set<Class<?>> getGeneratedClasses() {
-    return units.keySet();
+    return wrappedJavaFilesMap.keySet();
   }
 
   public Class<?> getListClass() {
@@ -215,5 +229,83 @@ public class WrapperBuilder {
   public Class<?> getMapClass() {
     return mapClass;
   }
+  
+  public static class ClassParameters {
+    Class<?> abstractClass;
+    List<ClassVariable> classVariables;
+    boolean isPassedToChildClass;
+    boolean isRootClass;
+    
+    public ClassParameters(Class<?> abstractClass, List<ClassVariable> classVariables, boolean isPassedToChildClass, boolean isRootClass) {
+      this.abstractClass = abstractClass;
+      this.classVariables = classVariables;
+      this.isPassedToChildClass = isPassedToChildClass;
+      this.isRootClass = isRootClass;
+    }
+
+    public Class<?> getAbstractClass() {
+      return abstractClass;
+    }
+
+    public List<ClassVariable> getClassVariables() {
+      return classVariables;
+    }
+
+    public boolean isChildClass() {
+      return isPassedToChildClass;
+    }
+
+    public boolean isRootClass() {
+      return isRootClass;
+    } 
+    
+  }
+  
+  public static class ClassVariable {
+    private Class<?> variableClass;
+    private String variableName;
+    boolean addedToConstructor;
+    boolean passedToConstructors;
+    
+   
+    public ClassVariable(Class<?> variableClass, String variableName, boolean addedToConstructor,
+        boolean passedToConstructors) {
+      this.variableClass = variableClass;
+      this.variableName = variableName;
+      this.addedToConstructor = addedToConstructor;
+      this.passedToConstructors = passedToConstructors;
+    }
+
+    public Class<?> getVariableClass() {
+      return variableClass;
+    }
+
+    public String getVariableName() {
+      return variableName;
+    }
+
+    public boolean isAddedToConstructor() {
+      return addedToConstructor;
+    }
+
+    public boolean isPassedToConstructors() {
+      return passedToConstructors;
+    }    
+    
+  }
+
+  public Map<Class<?>, ClassParameters> getClassesParameters() {
+    return classesParameters;
+  }
+
+  public ClassParameters getDefaultParameters() {
+    return defaultParameters;
+  }
+
+  public void setDefaultParameters(ClassParameters defaultParameters) {
+    this.defaultParameters = defaultParameters;
+  }
+  
+  
     
 }

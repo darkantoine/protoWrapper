@@ -22,14 +22,14 @@ import io.github.darkantoine.protowrapper.ProtoLoader.FieldDetails;
 
 public class ClassBuilder {
 
-  private static String CACHED_PREFIX = "cached";
+  protected static String CACHED_PREFIX = "cached";
 
-  private TypeSpec.Builder classBuilder;
-  WrapperBuilder wrapperBuilder;
-  Class<?> protoClass;
-  ProtoLoader protoLoader;
-  String className;
-  String protoFieldName;
+  protected TypeSpec.Builder classBuilder;
+  protected WrapperBuilder wrapperBuilder;
+  protected Class<?> protoClass;
+  protected ProtoLoader protoLoader;
+  protected String className;
+  protected String protoFieldName;
 
   public ClassBuilder(Class<?> protoClass, WrapperBuilder wrapperBuilder) {
 
@@ -44,6 +44,13 @@ public class ClassBuilder {
     protoFieldName = StringUtils.lowerCamel(className) + "PB";
     classBuilder.addField(protoClass, protoFieldName, Modifier.PRIVATE);
     
+    addConstructors();
+    
+    addMethods();
+
+  }
+
+  protected void addConstructors() {
     if (wrapperBuilder.getAbstractClass() != null) {      
       for (Constructor<?> constructor : wrapperBuilder.getAbstractClass().getConstructors()) {
         addConstructor(constructor);
@@ -51,12 +58,10 @@ public class ClassBuilder {
     }
     else {
       addConstructor();
-    }
-    addMethods();
-
+    }    
   }
 
-  private void addConstructor(Constructor<?> constructor) {
+  protected void addConstructor(Constructor<?> constructor) {
     MethodSpec.Builder mb;
     Map<String, AtomicInteger> parameterClassCount = new HashMap<String, AtomicInteger>();
     mb = MethodSpec.constructorBuilder().addParameter(protoClass, protoFieldName);
@@ -96,14 +101,13 @@ public class ClassBuilder {
     builder.addStatement("this." + protoFieldName + "= " + protoFieldName);
     mb.addCode(builder.build());
     classBuilder.addMethod(mb.build());
-
   }
 
-  private void addMethods() {
+  protected void addMethods() {
     protoLoader.getMethodsMap().values().stream().forEach(this::addMethod);
   }
 
-  private void addMethod(FieldDetails fieldDetails) {
+  protected void addMethod(FieldDetails fieldDetails) {
     MethodSpec.Builder mb = MethodSpec.methodBuilder(getterNameForField(fieldDetails))
         .returns(wrapperBuilder.computeReturnType(fieldDetails));
     mb.addModifiers(Modifier.PUBLIC);
@@ -118,11 +122,25 @@ public class ClassBuilder {
         if (!ClassUtils.isGoogleClass(fieldDetails.getJavaClass())) {
           return codeBlockForWrappedField(fieldDetails);
         }
+        else {         
+            return codeBlockForSimpleField(fieldDetails,WrapperBuilder.WKTMap.containsKey(fieldDetails.getJavaClass()));
+        }
       } else {
-        if (ClassUtils.isGoogleClass(fieldDetails.getJavaClass())
+        if (ClassUtils.isGoogleClass(fieldDetails.getJavaClass()) 
+            && ! WrapperBuilder.WKTMap.containsKey(fieldDetails.getJavaClass())
             || !com.google.protobuf.GeneratedMessageV3.class.isAssignableFrom(fieldDetails.getJavaClass())) {
-          return codeBlockForSimpleField(fieldDetails);
-        } else {
+          return codeBlockForSimpleField(fieldDetails,false);
+        }
+        if(WrapperBuilder.WKTMap.containsKey(fieldDetails.getJavaClass())) {
+          if (fieldDetails.isMapField()) {
+
+            return codeBlockForWKTMapField(fieldDetails);
+          } else {
+
+            return codeBlockForWKTListField(fieldDetails);
+          }
+          
+        }
           if (fieldDetails.isMapField()) {
 
             return codeBlockForMapField(fieldDetails);
@@ -130,14 +148,51 @@ public class ClassBuilder {
 
             return codeBlockForListField(fieldDetails);
           }
-        }
+        
       }
-    }
-    return codeBlockForSimpleField(fieldDetails);
+    }   
+      return codeBlockForSimpleField(fieldDetails, false);  
 
   }
 
-  private CodeBlock codeBlockForListField(FieldDetails fieldDetails) {
+
+  private CodeBlock codeBlockForWKTListField(FieldDetails fieldDetails) {
+    TypeName returnType = wrapperBuilder.computeReturnType(fieldDetails);
+    String cachedFieldName = CACHED_PREFIX + capitalize(fieldDetails.getName());
+    classBuilder.addField(returnType, cachedFieldName, Modifier.PRIVATE);
+
+    TypeName classType = wrapped(fieldDetails.getJavaClass());
+    CodeBlock.Builder builder = CodeBlock.builder();
+    builder.beginControlFlow("if ($N==null)", cachedFieldName)
+        .addStatement("$N = new $T<$T>()", cachedFieldName, wrapperBuilder.getListClass(), classType)
+        .beginControlFlow("for($T item:" + protoFieldName + "." + getterNameForField(fieldDetails) + "())",
+            fieldDetails.getJavaClass())
+        .addStatement("$N.add($N.getValue())",cachedFieldName, "item").endControlFlow().endControlFlow()
+        .addStatement("return $N", cachedFieldName);
+    return builder.build();
+  }
+
+  private CodeBlock codeBlockForWKTMapField(FieldDetails fieldDetails) {
+    TypeName returnType = wrapperBuilder.computeReturnType(fieldDetails);
+    String cachedFieldName = CACHED_PREFIX + capitalize(fieldDetails.getName());
+    classBuilder.addField(returnType, cachedFieldName, Modifier.PRIVATE);
+
+    CodeBlock.Builder builder = CodeBlock.builder();
+    TypeName classType = wrapped(fieldDetails.getJavaClass());
+    TypeName keyClass = wrapped(fieldDetails.getMapKeyClass());
+    builder.beginControlFlow("if ($N==null)", cachedFieldName)
+        .addStatement("$N = new $T<$T,$T>()", cachedFieldName, wrapperBuilder.getMapClass(), keyClass, classType)
+        .beginControlFlow("for($T key: " + protoFieldName + "." + getterNameForField(fieldDetails) + "().keySet())",
+            keyClass)
+        .addStatement(
+            "$N.put(key, $N.getValue())",
+            cachedFieldName, protoFieldName + "." + getterNameForField(fieldDetails) + "().get(key)")
+        .endControlFlow().endControlFlow();
+    builder.addStatement("return $N", cachedFieldName);
+    return builder.build();
+  }
+
+  protected CodeBlock codeBlockForListField(FieldDetails fieldDetails) {
 
     TypeName returnType = wrapperBuilder.computeReturnType(fieldDetails);
     String cachedFieldName = CACHED_PREFIX + capitalize(fieldDetails.getName());
@@ -149,17 +204,22 @@ public class ClassBuilder {
         .addStatement("$N = new $T<$T>()", cachedFieldName, wrapperBuilder.getListClass(), classType)
         .beginControlFlow("for($T item:" + protoFieldName + "." + getterNameForField(fieldDetails) + "())",
             fieldDetails.getJavaClass())
-        .addStatement("$N.add(new $T(item))", cachedFieldName, classType).endControlFlow().endControlFlow()
+        .addStatement("$N.add(new $T("+constructorParametersForListField(fieldDetails)+"))", cachedFieldName, classType).endControlFlow().endControlFlow()
         .addStatement("return $N", cachedFieldName);
     return builder.build();
   }
 
-  private CodeBlock codeBlockForSimpleField(FieldDetails fieldDetails) {
+  
+
+  private CodeBlock codeBlockForSimpleField(FieldDetails fieldDetails, boolean isWellKnownType) {
     StringBuilder sb = new StringBuilder();
     CodeBlock.Builder builder = CodeBlock.builder();
     sb.append("return ");
     sb.append(protoFieldName);
     sb.append("." + getterNameForField(fieldDetails) + "()");
+    if(isWellKnownType) {
+      sb.append(".getValue()");
+    }
     builder.addStatement(sb.toString());
     return builder.build();
   }
@@ -173,7 +233,7 @@ public class ClassBuilder {
     CodeBlock.Builder builder = CodeBlock.builder();
 
     builder.beginControlFlow("if ($N==null)", cachedFieldName)
-        .addStatement("$N= new $T(" + protoFieldName + '.' + getterNameForField(fieldDetails) + "())", cachedFieldName,
+        .addStatement("$N= new $T(" + constructorParametersForWrappedField(fieldDetails) +")", cachedFieldName,
             fieldType)
         .endControlFlow().addStatement("return $N", cachedFieldName);
     return builder.build();
@@ -192,18 +252,28 @@ public class ClassBuilder {
         .beginControlFlow("for($T item: " + protoFieldName + "." + getterNameForField(fieldDetails) + "().keySet())",
             keyClass)
         .addStatement(
-            "$N.put(item, new $T(" + protoFieldName + "." + getterNameForField(fieldDetails) + "().get(item)))",
+            "$N.put(item, new $T(" + constructorParametersForMapField(fieldDetails) +"))",
             cachedFieldName, classType)
         .endControlFlow().endControlFlow();
     builder.addStatement("return $N", cachedFieldName);
     return builder.build();
   }
+  
+  protected String constructorParametersForListField(FieldDetails fieldDetails) {
+    return "item";
+  }
+  protected String constructorParametersForWrappedField(FieldDetails fieldDetails) {
+    return protoFieldName + '.' + getterNameForField(fieldDetails) + "()";
+  }
+  protected String constructorParametersForMapField(FieldDetails fieldDetails) {
+    return protoFieldName + "." + getterNameForField(fieldDetails) + "().get(item)";
+  }
 
-  private TypeName wrapped(Class<?> clazz) {
+  protected TypeName wrapped(Class<?> clazz) {
     return wrapperBuilder.getWrappedTypeName(clazz);
   }
 
-  private static String getterNameForField(FieldDetails fieldDetails) {
+  protected static String getterNameForField(FieldDetails fieldDetails) {
     StringBuilder sb = new StringBuilder("get");
     sb.append(StringUtils.capitalize(fieldDetails.getName()));
     if (fieldDetails.isRepeated()) {

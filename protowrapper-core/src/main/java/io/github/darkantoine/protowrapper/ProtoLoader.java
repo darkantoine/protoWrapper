@@ -6,10 +6,10 @@ import java.lang.reflect.ParameterizedType;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Type;
 
 public class ProtoLoader {
@@ -44,7 +44,7 @@ public class ProtoLoader {
 
   private void initMethodsMaps(Class<? extends Type> protoClass) {
     for (FieldDescriptor fieldDescriptor : classDescriptor.getFields()) {
-      methodsMap.put(fieldDescriptor.getIndex(), new FieldDetails(fieldDescriptor, protoClass));
+      methodsMap.put(fieldDescriptor.getNumber(), new FieldDetails(fieldDescriptor, protoClass));
     }
   }
 
@@ -72,7 +72,7 @@ public class ProtoLoader {
       isRepeated = fD.isRepeated();
       isMapField = fD.isMapField();
       javaType = fD.getJavaType();
-      //System.out.println("processing field: "+fD.getJsonName());
+      System.out.println("processing field: "+fD.getJsonName()+" which is a "+javaType.toString());
       computeJavaClass(parentClass);
     }
 
@@ -230,5 +230,9 @@ public class ProtoLoader {
       return mapKeyClass;
     }
 
+  }
+  
+  public Descriptor getClassDescriptor() {
+    return classDescriptor;
   }
 }
