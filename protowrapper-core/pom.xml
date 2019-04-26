@@ -11,6 +11,8 @@
     <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>1.8</java.version>
+    <message.etl.version>0.5.180</message.etl.version>
+    <rule-engine-common.version>1.1.40</rule-engine-common.version>
   </properties>
   
 	<dependencies>
@@ -26,6 +28,16 @@
 		    <artifactId>javapoet</artifactId>
 		    <version>1.11.1</version>
 		</dependency>
+		<dependency>
+      <groupId>com.amadeus.pulse</groupId>
+      <artifactId>rule-engine-common</artifactId>
+      <version>${rule-engine-common.version}</version>
+    </dependency>
+	<dependency>
+      <groupId>com.amadeus.pulse</groupId>
+      <artifactId>messages-etl</artifactId>
+      <version>${message.etl.version}</version>
+    </dependency>
 	</dependencies>
 	
 	<build>
@@ -78,5 +90,11 @@
   </build>
   
 	
-
+  <repositories>
+    <repository>
+      <id>artifactory-1a</id>
+      <name>Amadeus Artifactory (Global Maven View)</name>
+      <url>https://repository.rnd.amadeus.net/mvn-public/</url>
+    </repository>
+ </repositories>
 </project>
